@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Vulnerability Scanner</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        
+        .scan-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            padding: 1.5rem;
+            background: white;
+            margin-top: -3rem;
+        }
+        
+        .vulnerability-card {
+            border-left: 4px solid #dc3545;
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        
+        .vulnerability-card:hover {
+            transform: translateX(5px);
+        }
+        
+        .risk-high {
+            border-left-color: #dc3545;
+        }
+        
+        .risk-medium {
+            border-left-color: #ffc107;
+        }
+        
+        .risk-low {
+            border-left-color: #0dcaf0;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .scanner-status {
+            display: none;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .btn-scan {
+            background: #2a5298;
+            color: white;
+            border: none;
+            padding: 0.5rem 2rem;
+            border-radius: 25px;
+        }
+        
+        .btn-scan:hover {
+            background: #1e3c72;
+            color: white;
+        }
+        
+        .stats-container {
+            margin-bottom: 2rem;
+            display: none;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Header -->
+    <div class="header">
+        <div class="container">
+            <h1 class="display-4">Web Vulnerability Scanner</h1>
+            <p class="lead">Scan websites for security vulnerabilities and potential risks</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Scan Input Card -->
+        <div class="scan-card bg-white">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" id="urlInput" class="form-control form-control-lg" placeholder="Enter website URL (e.g., example.com)">
+                        <button class="btn btn-scan btn-lg" id="scanButton">
+                            <i class="fas fa-search"></i> Scan Website
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button class="btn btn-outline-secondary btn-lg" id="exportButton" disabled>
+                        Export Results
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div class="stats-container">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h3>High Risk</h3>
+                        <div class="stat-number text-danger" id="highRiskCount">0</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h3>Medium Risk</h3>
+                        <div class="stat-number text-warning" id="mediumRiskCount">0</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <h3>Low Risk</h3>
+                        <div class="stat-number text-info" id="lowRiskCount">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scanner Status -->
+        <div class="scanner-status alert" id="scannerStatus"></div>
+
+        <!-- Results Section -->
+        <div id="results"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    <script>
+        let currentVulnerabilities = null;
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const scannerStatus = document.getElementById('scannerStatus');
+        const statsContainer = document.querySelector('.stats-container');
+
+        function updateStats(vulnerabilities) {
+            let high = 0, medium = 0, low = 0;
+            
+            vulnerabilities.forEach(vuln => {
+                if (vuln.risk.toLowerCase().includes('high')) high++;
+                else if (vuln.risk.toLowerCase().includes('medium')) medium++;
+                else low++;
+            });
+
+            document.getElementById('highRiskCount').textContent = high;
+            document.getElementById('mediumRiskCount').textContent = medium;
+            document.getElementById('lowRiskCount').textContent = low;
+            statsContainer.style.display = 'block';
+        }
+
+        function getRiskClass(risk) {
+            if (risk.toLowerCase().includes('high')) return 'risk-high';
+            if (risk.toLowerCase().includes('medium')) return 'risk-medium';
+            return 'risk-low';
+        }
+
+        document.getElementById('scanButton').addEventListener('click', async () => {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                showStatus('Please enter a URL', 'danger');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('results');
+            const scanButton = document.getElementById('scanButton');
+            const exportButton = document.getElementById('exportButton');
+
+            // Reset and show loading
+            resultsDiv.innerHTML = '';
+            loadingOverlay.style.display = 'flex';
+            scanButton.disabled = true;
+            exportButton.disabled = true;
+            statsContainer.style.display = 'none';
+            showStatus('Scanning in progress...', 'info');
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'error') {
+                    throw new Error(data.message);
+                }
+
+                currentVulnerabilities = data.vulnerabilities;
+                
+                if (currentVulnerabilities.length === 0) {
+                    showStatus('No vulnerabilities found!', 'success');
+                    resultsDiv.innerHTML = '<div class="alert alert-success">No vulnerabilities were detected on this website.</div>';
+                } else {
+                    showStatus(`Found ${currentVulnerabilities.length} potential vulnerabilities`, 'warning');
+                    updateStats(currentVulnerabilities);
+                    
+                    const results = currentVulnerabilities.map(vuln => `
+                        <div class="card vulnerability-card ${getRiskClass(vuln.risk)} mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">${vuln.type}</h5>
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <p class="card-text"><strong>Details:</strong> ${vuln.details}</p>
+                                        <p class="card-text"><strong>Risk:</strong> ${vuln.risk}</p>
+                                    </div>
+                                    <div class="col-md-4 border-start">
+                                        <h6>Recommended Solution:</h6>
+                                        <p class="card-text">${vuln.solution}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    resultsDiv.innerHTML = results;
+                    exportButton.disabled = false;
+                }
+            } catch (error) {
+                showStatus(error.message, 'danger');
+                resultsDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            } finally {
+                loadingOverlay.style.display = 'none';
+                scanButton.disabled = false;
+            }
+        });
+
+        function showStatus(message, type) {
+            scannerStatus.textContent = message;
+            scannerStatus.className = `scanner-status alert alert-${type}`;
+            scannerStatus.style.display = 'block';
+        }
+
+        document.getElementById('exportButton').addEventListener('click', async () => {
+            if (!currentVulnerabilities) return;
+
+            try {
+                const response = await fetch('/export', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ vulnerabilities: currentVulnerabilities })
+                });
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'scan_results.txt';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                showStatus('Results exported successfully!', 'success');
+            } catch (error) {
+                showStatus('Failed to export results', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>
